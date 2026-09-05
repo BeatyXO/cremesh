@@ -60,3 +60,10 @@ Append-only execution log. Record facts, not guesses: files changed, commands, t
 - Deployment transaction: `0x11cda6b2ebdd75e088030aa4ad79537bfd377ba6e25a2ac2d2f75ffbc91abbae`.
 - Deployment receipt: `ACCEPTED`, `MAJORITY_AGREE`, 5 validators; leader GenVM execution `SUCCESS`.
 - Updated environment files and README to the new contract address and consensus behavior.
+
+## 2026-09-05 — Web Access full-cycle verification
+
+- Fresh deterministic setup passed on `0x9438e8B9266145c9c3f915152aA94F84f8Da11A6`: target enrollment, policy publication, credential registration, and proposal creation all returned `ACCEPTED` and were visible in subsequent reads.
+- Fresh non-deterministic settlement passed: `settle_review` fetched `https://example.org` with `gl.nondet.web.get`, ran the bounded prompt/equivalence validator path, and committed `ABSTAINED / LOW` with `policy_fit: insufficient_evidence`.
+- Stored rationale correctly identified the placeholder source as insufficient and did not approve based only on the credential qualification string.
+- Final live `get_proposal` and `list_audit` reads passed; this verifies the Web Access path is fail-closed and consensus-backed.
