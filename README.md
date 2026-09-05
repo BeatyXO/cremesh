@@ -34,6 +34,6 @@ Use GenLayer's typed Vector Store for scoped retrieval of policies, source excer
 
 ## Current implementation note
 
-The deployed contract and frontend use deterministic credential, policy, proposal, settlement, challenge, and revocation flows. Web Access and a live `gl.eq_principle` semantic evaluator are not yet implemented; `settle_review` currently accepts bounded decision fields and enforces deterministic credential validity. The current StudioNet deployment is recorded in `handoff.md`.
+The deployed contract and frontend use deterministic credential, policy, proposal, challenge, and revocation flows. `settle_review` now uses `gl.nondet.web.get` to fetch declared public evidence and `gl.vm.run_nondet_unsafe` to have validators independently assess the proposed structured decision. Deterministic code still owns credential validity, policy version, authorization, and lifecycle state. The current StudioNet deployment is recorded in `handoff.md`.
 
 

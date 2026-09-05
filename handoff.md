@@ -52,3 +52,11 @@ Append-only execution log. Record facts, not guesses: files changed, commands, t
 - Real lifecycle state reached: `REVIEWING` → `APPROVED / HIGH` → `CHALLENGED`; credential read back with `revoked: true`.
 - Settlement required non-empty CLI arguments; empty-string CLI args caused rollback, documented as a CLI gotcha.
 - Final live reads passed and environment files now point to the final address.
+
+## 2026-09-05 — Web Access and equivalence deployment
+
+- Added source-grounded evaluator to `settle_review`: bounded public evidence fetch via `gl.nondet.web.get`, leader extraction via `gl.nondet.exec_prompt`, and independent validator acceptance via `gl.vm.run_nondet_unsafe`.
+- Deployed contract: `0x9438e8B9266145c9c3f915152aA94F84f8Da11A6`.
+- Deployment transaction: `0x11cda6b2ebdd75e088030aa4ad79537bfd377ba6e25a2ac2d2f75ffbc91abbae`.
+- Deployment receipt: `ACCEPTED`, `MAJORITY_AGREE`, 5 validators; leader GenVM execution `SUCCESS`.
+- Updated environment files and README to the new contract address and consensus behavior.
