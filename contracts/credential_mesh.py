@@ -76,7 +76,7 @@ class CredentialMesh(gl.Contract):
         policy_id = target_id + ":" + str(policy_version)
         assert policy_id in self.policies, "EXPECTED: stale or unknown policy"
         policy = json.loads(self.policies[policy_id])
-        self.proposals[proposal_id] = json.dumps({"id": proposal_id, "target_id": target_id, "credential_id": credential_id, "policy_version": policy_version, "policy_hash": policy["hash"], "context": context[:1000], "status": "REVIEWING", "decision": "PENDING", "challenge": "", "challenger": "", "challenge_deadline": int(datetime.now(timezone.utc).timestamp()) + 86400, "proposer": str(gl.message.sender_address)})
+        self.proposals[proposal_id] = json.dumps({"id": proposal_id, "target_id": target_id, "credential_id": credential_id, "policy_version": policy_version, "policy_hash": policy["hash"], "context": context[:1000], "status": "REVIEWING", "decision": "PENDING", "challenge": "", "challenger": "", "challenge_deadline": 0, "proposer": str(gl.message.sender_address)})
         self._event("REVIEW_PROPOSED", proposal_id, "semantic review opened")
         return proposal_id
 
@@ -131,7 +131,7 @@ class CredentialMesh(gl.Contract):
         assert proposal_id in self.proposals and json.loads(self.proposals[proposal_id])["status"] == "APPROVED", "EXPECTED: only approved reviews"
         p = json.loads(self.proposals[proposal_id])
         assert str(gl.message.sender_address) != p["proposer"], "EXPECTED: proposer cannot challenge"
-        assert int(datetime.now(timezone.utc).timestamp()) <= p["challenge_deadline"], "EXPECTED: challenge window closed"
+        assert p["challenge_deadline"] > 0 and int(datetime.now(timezone.utc).timestamp()) <= p["challenge_deadline"], "EXPECTED: challenge window closed"
         assert p["challenger"] == "", "EXPECTED: one challenge only"
         assert len(evidence_ref) <= 500, "EXPECTED: evidence bound"
         p.update({"status":"CHALLENGED", "challenge": evidence_ref, "challenger": str(gl.message.sender_address)}); self.proposals[proposal_id] = json.dumps(p)
