@@ -1,2 +1,3 @@
 import ProtocolPage from '@/components/ProtocolPage';
-export default function Credentials(){return <ProtocolPage eyebrow="CREDENTIALS / LIVE" title="Credential registry"><div className="empty"><h3>Credential management</h3><p>Read credentials from the deployed CredentialMesh contract. Registration and issuer-only revocation are available through the connected wallet workflow.</p></div></ProtocolPage>}
+import LivePanel from '@/components/LivePanel';
+export default function Credentials(){return <ProtocolPage eyebrow="CREDENTIALS / LIVE" title="Credential registry"><LivePanel readMethod="list_credentials" writeMethod="register_credential" labels={['credential_id','subject','qualification','evidence_ref','source_digest','expiry']} /></ProtocolPage>}
