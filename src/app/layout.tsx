@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import './globals.css';
+import './ux.css';
 export const metadata: Metadata = { title: 'CredentialMesh — Semantic authorization', description: 'A credential dossier and policy review console secured by GenLayer consensus.' };
 export default function RootLayout({children}:{children:ReactNode}) { return <html lang="en"><body>{children}</body></html>; }
