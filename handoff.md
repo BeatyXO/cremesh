@@ -67,3 +67,15 @@ Append-only execution log. Record facts, not guesses: files changed, commands, t
 - Fresh non-deterministic settlement passed: `settle_review` fetched `https://example.org` with `gl.nondet.web.get`, ran the bounded prompt/equivalence validator path, and committed `ABSTAINED / LOW` with `policy_fit: insufficient_evidence`.
 - Stored rationale correctly identified the placeholder source as insufficient and did not approve based only on the credential qualification string.
 - Final live `get_proposal` and `list_audit` reads passed; this verifies the Web Access path is fail-closed and consensus-backed.
+
+## 2026-09-07 — Final submission-readiness verification
+
+- Final deployed contract: `0x287f8A91E9AA4ef39cdBc65B130E88921A54771d`.
+- Deployment transaction: `0xdcadbae294b782ebd1fb43fc7135613696a2353b6ac76d98b78a8487b298cd76`; receipt `FINALIZED`, `MAJORITY_AGREE`, leader GenVM execution `SUCCESS`.
+- GitHub baseline: `176d5fa` before this wallet-only pass; subsequent wallet provider changes are uncommitted pending production-browser verification.
+- Pending settlement `0xe47a6b8bcf608f2059b64e569df3271a422089167c394b3032316ac47259ed92` finalized with `MAJORITY_AGREE`; leader GenVM execution `SUCCESS`; persisted proposal `fresh-review-20260907` is `REJECTED / HIGH`.
+- Settlement readback: source digest `ff67a9d764d6a2367a187734e697f6a53217db9a21c101d410a113ca871a299d`, evidence `evidence_1`, rationale states Example Domain does not evidence a qualification. Challenge deadline remained `0` because approval was not reached.
+- `is_credential_authorized(fresh-credential-20260907, fresh-target-20260907, 2)` read back `false`.
+- Fresh lifecycle writes accepted on the exact contract: target enrollment tx `0x7643c74b316f1add780ab80acdfdc5df1d1d1ff12500b1f1e6cba5920f234868`; policy/credential/proposal writes were read back successfully. The earlier mixed-address attempt was rejected with `EXPECTED: unknown target` and is not treated as evidence.
+- Schema verifier: all 17 methods passed. GenVM lint passed with return-annotation warnings. TypeScript typecheck passed before the final provider refactor; production build was started but did not emit a completion result in the local process.
+- Browser wallet provider refactor is present locally: injected writes pass `window.ethereum` to `createClient`; local browser wallet export/disconnect helpers are present. A real write from the Vercel production UI and a Vercel deployment receipt were not verified in this environment.
