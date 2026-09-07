@@ -102,6 +102,7 @@ class CredentialMesh(gl.Contract):
             raw = gl.nondet.exec_prompt(prompt)
             parsed = json.loads(raw)
             assert isinstance(parsed, dict)
+            parsed["source_digest"] = digest
             return parsed
         def validator_fn(leader_result):
             if not isinstance(leader_result, gl.vm.Return):
@@ -119,6 +120,8 @@ class CredentialMesh(gl.Contract):
         assert isinstance(result_evidence, list) and len(result_evidence) <= 8, "LLM_ERROR: invalid evidence ids"
         assert str(result.get("source_digest", "")) == c["source_digest"] or decision == "ABSTAINED", "LLM_ERROR: source digest missing"
         p.update({"status": decision, "decision": decision, "confidence_band": confidence_band, "policy_fit": str(result.get("policy_fit", "UNKNOWN"))[:32], "critical_risks": json.dumps(result.get("critical_risks", []))[:240], "evidence_ids": json.dumps(result_evidence), "source_digest": str(result.get("source_digest", c["source_digest"])), "rationale": str(result.get("rationale", ""))[:500]})
+        if decision == "APPROVED":
+            p["challenge_deadline"] = int(datetime.now(timezone.utc).timestamp()) + 86400
         self.proposals[proposal_id] = json.dumps(p)
         self._event("REVIEW_SETTLED", proposal_id, decision + " / " + confidence_band)
         return decision
@@ -165,7 +168,13 @@ class CredentialMesh(gl.Contract):
         if credential_id not in self.credentials or target_id not in self.targets:
             return False
         c = json.loads(self.credentials[credential_id])
-        return (not c["revoked"] and c["expiry"] >= int(datetime.now(timezone.utc).timestamp()) and target_id + ":" + str(policy_version) in self.policies)
+        if c["revoked"] or c["expiry"] < int(datetime.now(timezone.utc).timestamp()) or target_id + ":" + str(policy_version) not in self.policies:
+            return False
+        for raw in self.proposals.values():
+            p = json.loads(raw)
+            if p["credential_id"] == credential_id and p["target_id"] == target_id and p["policy_version"] == policy_version and p["status"] == "FINALIZED":
+                return True
+        return False
 
     @gl.public.view
     def get_target(self, target_id: str): return json.loads(self.targets.get(target_id, "{}"))
