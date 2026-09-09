@@ -71,12 +71,27 @@ class CredentialMesh(gl.Contract):
         return source_id
 
     @gl.public.write
+    def attest_source(self, source_id: str, evidence_ref: str, source_digest: str):
+        assert source_id in self.source_authorities, "EXPECTED: unknown source authority"
+        existing = self.source_authorities[source_id]
+        authority = json.loads(existing)["authority"] if existing.startswith("{") else existing
+        assert authority == str(gl.message.sender_address), "EXPECTED: source authority only"
+        assert len(evidence_ref) > 0 and len(source_digest) >= 8, "EXPECTED: source attestation bounds"
+        self.source_authorities[source_id] = json.dumps({"authority": str(gl.message.sender_address), "evidence_ref": evidence_ref[:500], "source_digest": source_digest})
+        self._event("SOURCE_ATTESTED", source_id, evidence_ref)
+        return True
+
+    @gl.public.write
     def register_credential(self, credential_id: str, issuer_id: str, subject: str, qualification: str, evidence_ref: str, source_digest: str, source_id: str, expiry: int):
         assert credential_id not in self.credentials, "EXPECTED: credential exists"
         assert issuer_id in self.issuers and self.issuers[issuer_id] == str(gl.message.sender_address), "EXPECTED: unauthorized issuer"
         assert source_id in self.source_authorities, "EXPECTED: unknown source authority"
         assert len(qualification) <= 1000 and len(evidence_ref) <= 500, "EXPECTED: field too long"
         assert len(source_digest) >= 8 and len(source_digest) <= 128, "EXPECTED: source digest required"
+        source_record = self.source_authorities[source_id]
+        if source_record.startswith("{"):
+            source_record = json.loads(source_record)
+            assert source_record["evidence_ref"] == evidence_ref and source_record["source_digest"] == source_digest, "EXPECTED: source attestation mismatch"
         self.credentials[credential_id] = json.dumps({"id": credential_id, "issuer_id": issuer_id, "subject": subject, "issuer": str(gl.message.sender_address), "qualification": qualification[:1000], "evidence_ref": evidence_ref[:500], "source_id": source_id, "source_digest": source_digest, "expiry": expiry, "revoked": False})
         self._event("CREDENTIAL_REGISTERED", credential_id, subject)
         return credential_id
@@ -181,7 +196,16 @@ class CredentialMesh(gl.Contract):
             except Exception:
                 return {"uphold": False, "reason": "challenge evidence unavailable"}
         def validator_fn(leader_result):
-            return isinstance(leader_result, gl.vm.Return)
+            if not isinstance(leader_result, gl.vm.Return):
+                return False
+            try:
+                source = gl.nondet.web.get(challenge_ref).body.decode("utf-8")
+                if self._digest(source) != challenge_digest:
+                    return leader_result.calldata.get("uphold") is False
+                verdict = json.loads(gl.nondet.exec_prompt("Return JSON boolean only. Independently decide whether this challenge evidence invalidates the original decision. Policy: " + policy + " Original rationale: " + p.get("rationale", "") + " Challenge evidence: " + source[:5000] + " Proposed adjudication: " + str(leader_result.calldata)))
+                return verdict is True
+            except Exception:
+                return False
         result = gl.vm.run_nondet_unsafe(leader_fn, validator_fn)
         assert isinstance(result, dict) and isinstance(result.get("uphold"), bool), "LLM_ERROR: malformed challenge result"
         uphold = result["uphold"]
@@ -206,7 +230,10 @@ class CredentialMesh(gl.Contract):
         return True
 
     @gl.public.view
-    def is_credential_authorized(self, credential_id: str, target_id: str, policy_version: int):
+    def is_credential_authorized(self, proposal_id: str):
+        if proposal_id not in self.proposals:
+            return False
+        p = json.loads(self.proposals[proposal_id]); credential_id = p["credential_id"]; target_id = p["target_id"]; policy_version = p["policy_version"]
         if credential_id not in self.credentials or target_id not in self.targets:
             return False
         c = json.loads(self.credentials[credential_id])
@@ -214,9 +241,16 @@ class CredentialMesh(gl.Contract):
             return False
         for raw in self.proposals.values():
             p = json.loads(raw)
-            if p["credential_id"] == credential_id and p["target_id"] == target_id and p["policy_version"] == policy_version and p.get("context_digest", "") == self._digest(p["context"]) and p["status"] == "FINALIZED":
+            if p["id"] == proposal_id and p["credential_id"] == credential_id and p["target_id"] == target_id and p["policy_version"] == policy_version and p.get("context_digest", "") == self._digest(p["context"]) and p["status"] == "FINALIZED":
                 return True
         return False
+
+    @gl.public.view
+    def get_authorization(self, proposal_id: str):
+        if proposal_id not in self.proposals:
+            return {"proposal_id": proposal_id, "authorized": False}
+        p = json.loads(self.proposals[proposal_id])
+        return {"proposal_id": proposal_id, "authorized": self.is_credential_authorized(proposal_id), "context": p["context"], "context_digest": p.get("context_digest", ""), "policy_version": p["policy_version"], "policy_hash": p["policy_hash"], "status": p["status"]}
 
     @gl.public.view
     def get_target(self, target_id: str): return json.loads(self.targets.get(target_id, "{}"))
