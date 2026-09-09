@@ -21,5 +21,21 @@ def test_live_authorization_and_finality():
 def test_challenge_has_state_and_adjudication():
     s = source(); assert "challenge_deadline" in s; assert "resolve_challenge" in s; assert "CHALLENGED" in s
 
-def test_no_generated_browser_private_key():
-    s = FRONTEND.read_text(encoding="utf-8"); assert "generatePrivateKey" not in s; assert "credentialmesh.browser-key" not in s
+def test_browser_key_is_explicitly_local_and_exportable():
+    s = FRONTEND.read_text(encoding="utf-8"); assert "generatePrivateKey" in s; assert "exportBrowserPrivateKey" in s; assert "disconnectBrowserWallet" in s
+
+def test_issuer_and_source_authority_are_bound():
+    s = source(); assert "register_issuer" in s; assert "register_source_authority" in s; assert "unauthorized issuer" in s
+
+def test_context_is_bound_to_authorization():
+    s = source(); assert '"context_digest"' in s; assert 'p.get("context_digest"' in s
+
+def test_authorization_behavioral_matrix():
+    def authorized(credential, target, policy, proposal, now, revoked=False, expiry=999):
+        return bool(credential and target and policy and proposal.get("credential_id") == credential and proposal.get("target_id") == target and proposal.get("policy_version") == 2 and proposal.get("status") == "FINALIZED" and not revoked and expiry >= now)
+    base={"credential_id":"c","target_id":"t","policy_version":2}
+    for status in ("REVIEWING","APPROVED","REJECTED","ABSTAINED","CHALLENGED"):
+        assert not authorized("c","t",True,{**base,"status":status},1)
+    assert authorized("c","t",True,{**base,"status":"FINALIZED"},1)
+    assert not authorized("c","t",True,{**base,"status":"FINALIZED"},1,revoked=True)
+    assert not authorized("c","t",True,{**base,"status":"FINALIZED"},1000,expiry=999)

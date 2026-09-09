@@ -14,6 +14,8 @@ class CredentialMesh(gl.Contract):
     targets: TreeMap[str, str]
     credentials: TreeMap[str, str]
     proposals: TreeMap[str, str]
+    issuers: TreeMap[str, str]
+    source_authorities: TreeMap[str, str]
     audit: DynArray[str]
     def __init__(self, charter: str = "CredentialMesh operating charter"):
         self.owner = gl.message.sender_address
@@ -23,6 +25,8 @@ class CredentialMesh(gl.Contract):
         self.policies = TreeMap()
         self.credentials = TreeMap()
         self.proposals = TreeMap()
+        self.issuers = TreeMap()
+        self.source_authorities = TreeMap()
         self.audit = []
 
     def _event(self, kind: str, ref: str, detail: str):
@@ -51,11 +55,29 @@ class CredentialMesh(gl.Contract):
         return self.policy_version
 
     @gl.public.write
-    def register_credential(self, credential_id: str, subject: str, qualification: str, evidence_ref: str, source_digest: str, expiry: int):
+    def register_issuer(self, issuer_id: str, issuer_address: Address):
+        assert str(gl.message.sender_address) == str(self.owner), "EXPECTED: controller only"
+        assert len(issuer_id) > 0 and issuer_id not in self.issuers, "EXPECTED: issuer id"
+        self.issuers[issuer_id] = str(issuer_address)
+        self._event("ISSUER_REGISTERED", issuer_id, str(issuer_address))
+        return issuer_id
+
+    @gl.public.write
+    def register_source_authority(self, source_id: str, authority: Address):
+        assert str(gl.message.sender_address) == str(self.owner), "EXPECTED: controller only"
+        assert len(source_id) > 0 and source_id not in self.source_authorities, "EXPECTED: source id"
+        self.source_authorities[source_id] = str(authority)
+        self._event("SOURCE_AUTHORITY_REGISTERED", source_id, str(authority))
+        return source_id
+
+    @gl.public.write
+    def register_credential(self, credential_id: str, issuer_id: str, subject: str, qualification: str, evidence_ref: str, source_digest: str, source_id: str, expiry: int):
         assert credential_id not in self.credentials, "EXPECTED: credential exists"
+        assert issuer_id in self.issuers and self.issuers[issuer_id] == str(gl.message.sender_address), "EXPECTED: unauthorized issuer"
+        assert source_id in self.source_authorities, "EXPECTED: unknown source authority"
         assert len(qualification) <= 1000 and len(evidence_ref) <= 500, "EXPECTED: field too long"
         assert len(source_digest) >= 8 and len(source_digest) <= 128, "EXPECTED: source digest required"
-        self.credentials[credential_id] = json.dumps({"id": credential_id, "subject": subject, "issuer": str(gl.message.sender_address), "qualification": qualification[:1000], "evidence_ref": evidence_ref[:500], "source_digest": source_digest, "expiry": expiry, "revoked": False})
+        self.credentials[credential_id] = json.dumps({"id": credential_id, "issuer_id": issuer_id, "subject": subject, "issuer": str(gl.message.sender_address), "qualification": qualification[:1000], "evidence_ref": evidence_ref[:500], "source_id": source_id, "source_digest": source_digest, "expiry": expiry, "revoked": False})
         self._event("CREDENTIAL_REGISTERED", credential_id, subject)
         return credential_id
 
@@ -119,7 +141,7 @@ class CredentialMesh(gl.Contract):
         result_evidence = result.get("evidence_ids", [])
         assert isinstance(result_evidence, list) and len(result_evidence) <= 8, "LLM_ERROR: invalid evidence ids"
         assert str(result.get("source_digest", "")) == c["source_digest"] or decision == "ABSTAINED", "LLM_ERROR: source digest missing"
-        p.update({"status": decision, "decision": decision, "confidence_band": confidence_band, "policy_fit": str(result.get("policy_fit", "UNKNOWN"))[:32], "critical_risks": json.dumps(result.get("critical_risks", []))[:240], "evidence_ids": json.dumps(result_evidence), "source_digest": str(result.get("source_digest", c["source_digest"])), "rationale": str(result.get("rationale", ""))[:500]})
+        p.update({"status": decision, "decision": decision, "confidence_band": confidence_band, "policy_fit": str(result.get("policy_fit", "UNKNOWN"))[:32], "critical_risks": json.dumps(result.get("critical_risks", []))[:240], "evidence_ids": json.dumps(result_evidence), "source_digest": str(result.get("source_digest", c["source_digest"])), "rationale": str(result.get("rationale", ""))[:500], "context_digest": self._digest(p["context"]), "settled_at": int(datetime.now(timezone.utc).timestamp())})
         if decision == "APPROVED":
             p["challenge_deadline"] = int(datetime.now(timezone.utc).timestamp()) + 86400
         self.proposals[proposal_id] = json.dumps(p)
@@ -127,25 +149,45 @@ class CredentialMesh(gl.Contract):
         return decision
 
     @gl.public.write
-    def challenge_review(self, proposal_id: str, evidence_ref: str):
+    def challenge_review(self, proposal_id: str, evidence_ref: str, evidence_digest: str):
         assert proposal_id in self.proposals and json.loads(self.proposals[proposal_id])["status"] == "APPROVED", "EXPECTED: only approved reviews"
         p = json.loads(self.proposals[proposal_id])
         assert str(gl.message.sender_address) != p["proposer"], "EXPECTED: proposer cannot challenge"
         assert p["challenge_deadline"] > 0 and int(datetime.now(timezone.utc).timestamp()) <= p["challenge_deadline"], "EXPECTED: challenge window closed"
         assert p["challenger"] == "", "EXPECTED: one challenge only"
-        assert len(evidence_ref) <= 500, "EXPECTED: evidence bound"
-        p.update({"status":"CHALLENGED", "challenge": evidence_ref, "challenger": str(gl.message.sender_address)}); self.proposals[proposal_id] = json.dumps(p)
+        assert len(evidence_ref) <= 500 and len(evidence_digest) >= 8, "EXPECTED: evidence bound"
+        p.update({"status":"CHALLENGED", "challenge": evidence_ref, "challenge_digest": evidence_digest, "challenger": str(gl.message.sender_address), "challenge_review": "PENDING"}); self.proposals[proposal_id] = json.dumps(p)
         self._event("REVIEW_CHALLENGED", proposal_id, evidence_ref)
         return True
 
     @gl.public.write
-    def resolve_challenge(self, proposal_id: str, uphold: bool):
+    def resolve_challenge(self, proposal_id: str):
         assert proposal_id in self.proposals, "EXPECTED: unknown proposal"
         p = json.loads(self.proposals[proposal_id])
         assert p["status"] == "CHALLENGED", "EXPECTED: no active challenge"
-        assert str(gl.message.sender_address) == str(self.owner), "EXPECTED: controller only"
+        challenge_ref = p["challenge"]
+        challenge_digest = p.get("challenge_digest", "")
+        policy = json.loads(self.policies[p["target_id"] + ":" + str(p["policy_version"])])["text"]
+        def leader_fn():
+            try:
+                source = gl.nondet.web.get(challenge_ref).body.decode("utf-8")
+                digest = self._digest(source)
+                if digest != challenge_digest:
+                    return {"uphold": False, "reason": "challenge evidence digest mismatch"}
+                raw = gl.nondet.exec_prompt("Return strict JSON only: {\"uphold\": true|false, \"reason\": string}. Decide neutrally whether this challenge invalidates the reviewed decision. Use uphold=false if evidence is unavailable, malformed, or insufficient. Policy: " + policy + " Original rationale: " + p.get("rationale", "") + " Challenge evidence: " + source[:5000])
+                result = json.loads(raw)
+                assert isinstance(result, dict) and isinstance(result.get("uphold"), bool)
+                return result
+            except Exception:
+                return {"uphold": False, "reason": "challenge evidence unavailable"}
+        def validator_fn(leader_result):
+            return isinstance(leader_result, gl.vm.Return)
+        result = gl.vm.run_nondet_unsafe(leader_fn, validator_fn)
+        assert isinstance(result, dict) and isinstance(result.get("uphold"), bool), "LLM_ERROR: malformed challenge result"
+        uphold = result["uphold"]
         p["status"] = "REJECTED" if uphold else "APPROVED"
         p["challenge_resolution"] = "UPHELD" if uphold else "DISMISSED"
+        p["challenge_review"] = str(result.get("reason", ""))[:240]
         self.proposals[proposal_id] = json.dumps(p)
         self._event("CHALLENGE_RESOLVED", proposal_id, p["challenge_resolution"])
         return p["status"]
@@ -172,7 +214,7 @@ class CredentialMesh(gl.Contract):
             return False
         for raw in self.proposals.values():
             p = json.loads(raw)
-            if p["credential_id"] == credential_id and p["target_id"] == target_id and p["policy_version"] == policy_version and p["status"] == "FINALIZED":
+            if p["credential_id"] == credential_id and p["target_id"] == target_id and p["policy_version"] == policy_version and p.get("context_digest", "") == self._digest(p["context"]) and p["status"] == "FINALIZED":
                 return True
         return False
 

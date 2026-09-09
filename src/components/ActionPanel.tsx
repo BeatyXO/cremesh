@@ -1,0 +1,4 @@
+'use client';
+import {useState} from 'react';
+import {CONTRACT_ADDRESS,connectWallet,writeMesh} from '@/lib/genlayer';
+export default function ActionPanel({method,labels}:{method:string;labels:string[]}){const[v,setV]=useState<string[]>(labels.map(()=>''));const[s,setS]=useState('');async function go(){try{setS('Waiting for wallet signature');const a=await connectWallet('injected');setS('Submitted; waiting for GenLayer consensus');await writeMesh(a,method,v.map(x=>{try{return JSON.parse(x)}catch{return x}}));setS('Finalized / executed successfully');}catch(e){setS('Execution failed: '+String(e))}}return <div className="form-card"><h3>{method.replaceAll('_',' ')}</h3>{labels.map((x,i)=><label key={x}>{x}<input value={v[i]} onChange={e=>{const n=[...v];n[i]=e.target.value;setV(n)}} /></label>)}<button className="primary" onClick={go}>Submit transaction</button><p>{s}</p></div>}

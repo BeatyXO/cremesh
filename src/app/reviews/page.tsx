@@ -1,3 +1,4 @@
 import ProtocolPage from '@/components/ProtocolPage';
 import LivePanel from '@/components/LivePanel';
-export default function Reviews(){return <ProtocolPage eyebrow="REVIEWS / CONSENSUS" title="Semantic authorization"><LivePanel readMethod="list_proposals" readArgs={[0,20]} writeMethod="propose_review" labels={['proposal_id','target_id','credential_id','policy_version','context']} /></ProtocolPage>}
+import ActionPanel from '@/components/ActionPanel';
+export default function Reviews(){return <ProtocolPage eyebrow="REVIEWS / CONSENSUS" title="Semantic authorization"><LivePanel readMethod="list_proposals" readArgs={[0,20]} writeMethod="propose_review" labels={['proposal_id','target_id','credential_id','policy_version','context']} /><ActionPanel method="settle_review" labels={['proposal_id']} /><ActionPanel method="challenge_review" labels={['proposal_id','evidence_ref','evidence_digest']} /><ActionPanel method="resolve_challenge" labels={['proposal_id']} /><ActionPanel method="finalize_review" labels={['proposal_id']} /><ActionPanel method="revoke_credential" labels={['credential_id']} /></ProtocolPage>}
