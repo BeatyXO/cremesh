@@ -1,0 +1,4 @@
+'use client';
+import {useState} from 'react';
+import {CONTRACT_ADDRESS,getReadClient} from '@/lib/genlayer';
+export default function ReadPanel({method,labels}:{method:string;labels:string[]}){const[v,setV]=useState(labels.map(()=>''));const[data,setData]=useState<unknown>();const[s,setS]=useState('');async function read(){try{const args=v.map(x=>{try{return JSON.parse(x)}catch{return x}});const c=await getReadClient();setData(await c.readContract({address:CONTRACT_ADDRESS as `0x${string}`,functionName:method,args:args as any}));setS('Read confirmed.')}catch(e){setS(String(e))}}return <div className="form-card"><h3>{method.replaceAll('_',' ')}</h3>{labels.map((x,i)=><label key={x}>{x}<input value={v[i]} onChange={e=>{const n=[...v];n[i]=e.target.value;setV(n)}} placeholder={x}/></label>)}<button className="ghost" onClick={read}>Read contract</button><p>{s}</p>{data!==undefined&&<pre className="proposal">{JSON.stringify(data,null,2)}</pre>}</div>}

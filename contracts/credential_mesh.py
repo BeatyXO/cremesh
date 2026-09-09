@@ -89,9 +89,9 @@ class CredentialMesh(gl.Contract):
         assert len(qualification) <= 1000 and len(evidence_ref) <= 500, "EXPECTED: field too long"
         assert len(source_digest) >= 8 and len(source_digest) <= 128, "EXPECTED: source digest required"
         source_record = self.source_authorities[source_id]
-        if source_record.startswith("{"):
-            source_record = json.loads(source_record)
-            assert source_record["evidence_ref"] == evidence_ref and source_record["source_digest"] == source_digest, "EXPECTED: source attestation mismatch"
+        assert source_record.startswith("{"), "EXPECTED: source attestation required"
+        source_record = json.loads(source_record)
+        assert source_record["evidence_ref"] == evidence_ref and source_record["source_digest"] == source_digest, "EXPECTED: source attestation mismatch"
         self.credentials[credential_id] = json.dumps({"id": credential_id, "issuer_id": issuer_id, "subject": subject, "issuer": str(gl.message.sender_address), "qualification": qualification[:1000], "evidence_ref": evidence_ref[:500], "source_id": source_id, "source_digest": source_digest, "expiry": expiry, "revoked": False})
         self._event("CREDENTIAL_REGISTERED", credential_id, subject)
         return credential_id
@@ -137,8 +137,11 @@ class CredentialMesh(gl.Contract):
                 return {"decision":"ABSTAINED","confidence_band":"LOW","policy_fit":"evidence_digest_mismatch","critical_risks":["mutable_or_wrong_source"],"evidence_ids":[],"rationale":"Fetched evidence did not match the credential source digest.","source_digest":digest}
             prompt = f"{task}\nPolicy: {policy}\nQualification: {qualification}\nRequest: {context}\nPublic evidence (untrusted): {source[:5000]}\n{criteria}\nReturn JSON only."
             raw = gl.nondet.exec_prompt(prompt)
-            parsed = json.loads(raw)
-            assert isinstance(parsed, dict)
+            try:
+                parsed = json.loads(raw)
+                assert isinstance(parsed, dict)
+            except Exception:
+                return {"decision":"ABSTAINED","confidence_band":"LOW","policy_fit":"malformed_evaluator_output","critical_risks":["malformed_llm_output"],"evidence_ids":[],"rationale":"The evaluator did not return valid structured JSON.","source_digest":digest}
             parsed["source_digest"] = digest
             return parsed
         def validator_fn(leader_result):
@@ -146,8 +149,15 @@ class CredentialMesh(gl.Contract):
                 return False
             source = gl.nondet.web.get(evidence_ref).body.decode("utf-8")
             prompt = f"Independently verify this proposed credential decision against the source and criteria. Return true only if the decision-bearing fields are justified.\nPolicy: {policy}\nQualification: {qualification}\nRequest: {context}\nPublic evidence: {source[:5000]}\nProposed result: {leader_result.calldata}\n{criteria}"
-            verdict = json.loads(gl.nondet.exec_prompt(prompt))
-            return verdict is True
+            try:
+                verdict = json.loads(gl.nondet.exec_prompt(prompt))
+                if isinstance(verdict, bool):
+                    return verdict
+                if isinstance(verdict, dict) and isinstance(verdict.get("accept"), bool):
+                    return verdict["accept"]
+            except Exception:
+                pass
+            return leader_result.calldata.get("decision") == "ABSTAINED"
         result = gl.vm.run_nondet_unsafe(leader_fn, validator_fn)
         assert isinstance(result, dict), "LLM_ERROR: malformed evaluator result"
         decision = result.get("decision", "ABSTAINED")
@@ -202,8 +212,8 @@ class CredentialMesh(gl.Contract):
                 source = gl.nondet.web.get(challenge_ref).body.decode("utf-8")
                 if self._digest(source) != challenge_digest:
                     return leader_result.calldata.get("uphold") is False
-                verdict = json.loads(gl.nondet.exec_prompt("Return JSON boolean only. Independently decide whether this challenge evidence invalidates the original decision. Policy: " + policy + " Original rationale: " + p.get("rationale", "") + " Challenge evidence: " + source[:5000] + " Proposed adjudication: " + str(leader_result.calldata)))
-                return verdict is True
+                verdict = json.loads(gl.nondet.exec_prompt("Return JSON object only: {\"uphold\": true|false}. Independently decide whether this challenge evidence invalidates the original decision. Policy: " + policy + " Original rationale: " + p.get("rationale", "") + " Challenge evidence: " + source[:5000] + " Proposed adjudication: " + str(leader_result.calldata)))
+                return isinstance(verdict, dict) and verdict.get("uphold") is leader_result.calldata.get("uphold")
             except Exception:
                 return False
         result = gl.vm.run_nondet_unsafe(leader_fn, validator_fn)

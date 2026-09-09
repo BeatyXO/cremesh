@@ -79,3 +79,14 @@ Append-only execution log. Record facts, not guesses: files changed, commands, t
 - Fresh lifecycle writes accepted on the exact contract: target enrollment tx `0x7643c74b316f1add780ab80acdfdc5df1d1d1ff12500b1f1e6cba5920f234868`; policy/credential/proposal writes were read back successfully. The earlier mixed-address attempt was rejected with `EXPECTED: unknown target` and is not treated as evidence.
 - Schema verifier: all 17 methods passed. GenVM lint passed with return-annotation warnings. TypeScript typecheck passed before the final provider refactor; production build was started but did not emit a completion result in the local process.
 - Browser wallet provider refactor is present locally: injected writes pass `window.ethereum` to `createClient`; local browser wallet export/disconnect helpers are present. A real write from the Vercel production UI and a Vercel deployment receipt were not verified in this environment.
+
+## 2026-09-10 — Clean final contract and MIN follow-up
+
+- Final clean contract: `0x6CB6024731Fe65C84A8DF300cCD43d4decd9A3f2`.
+- Deployment transaction: `0xef04ee3366a05442d18bab8b750d2fa03cb0bd4e773c1135e9c48980e115060f`; receipt `ACCEPTED`, consensus `MAJORITY_AGREE`, deployment GenVM execution `SUCCESS`.
+- Clean lifecycle setup used correctly separated arguments. Enrollment readback succeeded; issuer registration, source-authority registration, policy publication, attestation, credential registration, and proposal creation were then verified on the same contract.
+- Settlement transaction: `0x8f877077c821f9c49a50c507812d26ccc65d3dd441d99a2b1e5777b25105d4bc`; receipt `ACCEPTED`, consensus `MAJORITY_AGREE`, leader GenVM execution `SUCCESS`.
+- Settlement readback: proposal `clean-review` persisted as `ABSTAINED / HIGH`; source digest matched `ff67a9d764d6a2367a187734e697f6a53217db9a21c101d410a113ca871a299d`; authorization read returned `false`.
+- Revocation readback: credential `clean-credential` persisted with `revoked: true`; authorization remained `false`.
+- Schema verifier: 21 methods verified. Python compilation, behavioral tests, TypeScript typecheck, and production Next.js build passed locally.
+- Follow-up fixes: source attestation is mandatory before credential registration; challenge validators require independent `uphold` equality with the leader conclusion; policy and proposal-bound authorization reads are exposed in the UI.

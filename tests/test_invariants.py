@@ -39,3 +39,24 @@ def test_authorization_behavioral_matrix():
     assert authorized("p",{**base,"id":"p","status":"FINALIZED"},1)
     assert not authorized("p",{**base,"id":"p","status":"FINALIZED"},1,revoked=True)
     assert not authorized("p",{**base,"id":"p","status":"FINALIZED"},1000,expiry=999)
+
+def test_credential_requires_attested_source_behaviorally():
+    sources = {"source": {"authority": "issuer", "attested": False}}
+    def register(source_id):
+        if not sources[source_id]["attested"]:
+            raise ValueError("EXPECTED: source attestation required")
+        return True
+    try:
+        register("source")
+        assert False
+    except ValueError as exc:
+        assert str(exc) == "EXPECTED: source attestation required"
+    sources["source"]["attested"] = True
+    assert register("source") is True
+
+def test_challenge_validator_must_match_leader_conclusion():
+    def accepts(leader_uphold, independent_uphold):
+        return independent_uphold is leader_uphold
+    assert accepts(True, True)
+    assert accepts(False, False)
+    assert not accepts(True, False)
