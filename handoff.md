@@ -98,3 +98,10 @@ Append-only execution log. Record facts, not guesses: files changed, commands, t
 - `.env.example`, README, schema verifier input, and Explorer evidence now point to this deployment. Schema count: 21 methods.
 - Verification: GenVM lint passed (`ok: true`, return-annotation warnings only); Python compilation passed; behavioral contract-state tests passed; TypeScript typecheck passed; production build passed.
 - This address supersedes all earlier deployments in this append-only log; earlier entries remain historical evidence only.
+
+## 2026-09-10 — Real contract behavior tests
+
+- Removed the `MeshModel` imitation tests.
+- Exact command: `gltest -q tests/test_contract_behavior.py`.
+- Result: `2 passed in 0.24s`.
+- These tests deploy and execute `contracts/credential_mesh.py` through the direct GenLayer VM, covering mandatory source attestation/digest binding and proposal-bound authorization before finalization. They fail on broken real contract methods.
