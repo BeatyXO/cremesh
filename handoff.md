@@ -105,3 +105,11 @@ Append-only execution log. Record facts, not guesses: files changed, commands, t
 - Exact command: `gltest -q tests/test_contract_behavior.py`.
 - Result: `2 passed in 0.24s`.
 - These tests deploy and execute `contracts/credential_mesh.py` through the direct GenLayer VM, covering mandatory source attestation/digest binding and proposal-bound authorization before finalization. They fail on broken real contract methods.
+
+## 2026-09-10 — Complete real contract behavior suite
+
+- Deleted the stale `tests/test_invariants.py` MeshModel imitation test file; contract and frontend files were not modified.
+- Extended `tests/test_contract_behavior.py` with a real `direct_deploy` lifecycle covering settlement to `APPROVED`, approval-started challenge timing, challenge submission, independent challenge resolution, time-gated finalization, successful proposal-bound authorization, and issuer revocation removing authorization.
+- Direct-VM web and LLM mocks provide the evidence body, matching SHA-256 digest, evaluator JSON, and independent validator conclusions. The test uses the actual `contracts/credential_mesh.py` implementation and fails if those methods or state transitions break.
+- Exact command: `gltest -q tests`.
+- Result: `3 passed in 0.26s`.
