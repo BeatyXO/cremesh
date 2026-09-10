@@ -90,3 +90,11 @@ Append-only execution log. Record facts, not guesses: files changed, commands, t
 - Revocation readback: credential `clean-credential` persisted with `revoked: true`; authorization remained `false`.
 - Schema verifier: 21 methods verified. Python compilation, behavioral tests, TypeScript typecheck, and production Next.js build passed locally.
 - Follow-up fixes: source attestation is mandatory before credential registration; challenge validators require independent `uphold` equality with the leader conclusion; policy and proposal-bound authorization reads are exposed in the UI.
+
+## 2026-09-10 — Canonical deployment
+
+- Canonical contract: `0xF7d4B16634915E474e3c522DdB069a7275600964` on StudioNet chain `61999`.
+- Deployment transaction: `0x23055be3703a5c8a80dc39021a64ae92f3fd0bb7a388bb7592bded6db0eeec27`; receipt `ACCEPTED`, consensus `MAJORITY_AGREE`, GenVM execution `SUCCESS`.
+- `.env.example`, README, schema verifier input, and Explorer evidence now point to this deployment. Schema count: 21 methods.
+- Verification: GenVM lint passed (`ok: true`, return-annotation warnings only); Python compilation passed; behavioral contract-state tests passed; TypeScript typecheck passed; production build passed.
+- This address supersedes all earlier deployments in this append-only log; earlier entries remain historical evidence only.
